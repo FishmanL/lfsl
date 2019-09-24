@@ -118,9 +118,10 @@ class Lfslstd(Peer):
         else:
             logging.debug("Still here: uploading to a random peer")
             # change my internal state for no reason
-            # on first round, evenly split bandwidth speed between requesters
+            # on first round, evenly split bandwidth speed between 4 random requesters
             self.dummy_state["cake"] = "pie"
             if round == 0:
+                random.shuffle(requests)
                 chosen = [request.requester_id for request in requests[0:4]]
                 bws = even_split(self.up_bw, len(chosen))
             else:
@@ -129,7 +130,7 @@ class Lfslstd(Peer):
                     self.dummy_state["unchoked_agent"] = random.choice(peers).id
                 pasthist = history.downloads[round-1]
 
-                # create a dictionary mapping piece ids to the number of blocks
+                # create a dictionary mapping agents to the number of blocks they gave you last round
                 ndict = {}
                 for item in pasthist:
                     if item.to_id != self.id:
