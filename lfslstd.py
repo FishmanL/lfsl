@@ -67,7 +67,7 @@ class Lfslstd(Peer):
             # This would be the place to try fancier piece-requesting strategies
             # to avoid getting the same thing from multiple peers at a time.
             ilist = sorted(isect, key = lambda x: piecedict[x])
-            if round <= 5:
+            if round >= 5:
                 for piece_id in ilist[:n]:  #rarest first
                     # aha! The peer has this piece! Request it.
                     # which part of the piece do we need next?
