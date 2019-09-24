@@ -14,7 +14,7 @@ class Lfslstd(Peer):
         print "post_init(): %s here!" % self.id
         self.dummy_state = dict()
         self.dummy_state["cake"] = "lie"
-    
+
     def requests(self, peers, history):
         """
         peers: available info about the peers (who has what pieces)
@@ -27,6 +27,8 @@ class Lfslstd(Peer):
         needed = lambda i: self.pieces[i] < self.conf.blocks_per_piece
         needed_pieces = filter(needed, range(len(self.pieces)))
         np_set = set(needed_pieces)  # sets support fast intersection ops.
+
+        # count number of peers that have each needed piece
         piecedict = {}
         for piece in needed_pieces:
             numhaving = 0
@@ -50,8 +52,8 @@ class Lfslstd(Peer):
         requests = []   # We'll put all the things we want here
         # Symmetry breaking is good...
         random.shuffle(needed_pieces)
-        
-        # Sort peers by id.  This is probably not a useful sort, but other 
+
+        # Sort peers by id.  This is probably not a useful sort, but other
         # sorts might be useful
         random.shuffle(peers)
         # request all available pieces from all peers!
@@ -66,8 +68,12 @@ class Lfslstd(Peer):
             # More symmetry breaking -- ask for random pieces.
             # This would be the place to try fancier piece-requesting strategies
             # to avoid getting the same thing from multiple peers at a time.
+            # sort by rarest pieces
             ilist = sorted(isect, key = lambda x: piecedict[x])
-            if round <= 5:
+
+            # in first 5 rounds, request pieces randomly
+            # after that, look for rarest pieces first
+            if round >= 5:
                 for piece_id in ilist[:n]:  #rarest first
                     # aha! The peer has this piece! Request it.
                     # which part of the piece do we need next?
@@ -112,14 +118,18 @@ class Lfslstd(Peer):
         else:
             logging.debug("Still here: uploading to a random peer")
             # change my internal state for no reason
+            # on first round, evenly split bandwidth speed between requesters
             self.dummy_state["cake"] = "pie"
             if round == 0:
-                chosen = [request.requester_id for request in requests]
+                chosen = [request.requester_id for request in requests[0:4]]
                 bws = even_split(self.up_bw, len(chosen))
             else:
+                # optimistic unchoking every 3 periods
                 if "unchoked_agent" not in self.dummy_state or round % 3 == 1:
                     self.dummy_state["unchoked_agent"] = random.choice(peers).id
                 pasthist = history.downloads[round-1]
+
+                # create a dictionary mapping piece ids to the number of blocks
                 ndict = {}
                 for item in pasthist:
                     if item.to_id != self.id:
@@ -133,6 +143,7 @@ class Lfslstd(Peer):
 
                 reqset = set(request.requester_id for request in requests)
                 logging.debug(repr(top))
+                # get 3 most generous bots
                 top3 = []
                 for id in top:
                     if id[0] in reqset:
@@ -142,7 +153,7 @@ class Lfslstd(Peer):
                         break
                 chosen = [item for item in top3]
                 logging.debug(chosen)
-                while len(chosen)<4:
+                while len(chosen) < 4:
                     chosen.append(self.dummy_state["unchoked_agent"])
                 bws = even_split(self.up_bw, len(chosen))
 
@@ -152,5 +163,5 @@ class Lfslstd(Peer):
         # create actual uploads out of the list of peer ids and bandwidths
         uploads = [Upload(self.id, peer_id, bw)
                    for (peer_id, bw) in zip(chosen, bws)]
-            
+
         return uploads
