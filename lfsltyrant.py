@@ -18,13 +18,13 @@ class Lfsltyrant(Peer):
 
     def post_init(self):
         print "post_init(): %s here!" % self.id
-        self.dummy_state = dict()
-        self.dummy_state["cake"] = "lie"
-        # initialize beliefs about 1) upload speed 2) download speed 3) unchoking in last 3 periods for each peer
-        # self.upload_beliefs = dict()
+        # track beliefs about uploading (sum of upload bandwidth for the first r rounds and then updated based on choking)
+        self.upload_beliefs = dict()
         # track both download sums (sum of downloaded blocks) and download beliefs (alpha/gamma)
         self.download_nums = dict()
-        # self.download_beliefs = dict()
+        self.download_beliefs = dict()
+
+        # dictionary mapping peer ids to array of r booleans (whether j has unchoked us in each of the last r rounds)
         self.unchoking_beliefs = dict()
         self.we_unchoked = []
 
@@ -111,19 +111,19 @@ class Lfsltyrant(Peer):
         return requests
 
     def initialize_beliefs(self, peers):
-        self.download_beliefs = dict()
-        self.upload_beliefs = dict()
         logging.debug('initializing')
         logging.debug(str(peers))
         for peer in peers:
             self.download_beliefs[peer.id] = 1
             self.upload_beliefs[peer.id] = 1
+            self.unchoking_beliefs[peer.id] = []
 
     # update beliefs based on past round
     def update_beliefs(self, peers, history,
                         update_download_sum=True,
                         update_upload_sum=False,
-                        update_unchoking=True):
+                        update_unchoking=True,
+                        update_beliefs=True):
         round = history.current_round()
         last_downloads = history.downloads[round - 1]
         last_uploads = history.uploads[round - 1]
@@ -134,7 +134,7 @@ class Lfsltyrant(Peer):
                     self.download_nums[download.from_id] += download.blocks
                 else:
                     self.download_nums[download.from_id] = download.blocks
-        # update number of blocks I have uploaded from everybody
+        # update number of blocks I have uploaded from everybody, only called in the first r rounds
         if update_upload_sum:
             for upload in last_uploads:
                 # track who unchoked us
@@ -144,18 +144,18 @@ class Lfsltyrant(Peer):
             # update list of whether j unchoked us in the last r periods
             unchoked = set(download.from_id for download in last_downloads)
             for peer in peers:
-                if peer.id not in self.unchoking_beliefs.keys():
-                    self.unchoking_beliefs[peer.id] = []
                 self.unchoking_beliefs[peer.id].append(peer.id in unchoked)
                 while len(self.unchoking_beliefs[peer.id]) > self.r:
                     self.unchoking_beliefs[peer.id].pop(0)
+
+        if update_beliefs:
             # update list of whether we unchoked them
             we_unchoked = set(upload.to_id for upload in last_uploads)
             for pid in we_unchoked:
                 # if they didn't unchoke us, increase the upload belief
                 if not self.unchoking_beliefs[pid][-1]:
                     self.upload_beliefs[pid] *= (1 + self.alpha)
-                # if they did unchoke us, change the download belief
+                # if they did unchoke us, change the download belief to the download speed
                 else:
                     self.download_beliefs[pid] = self.download_nums[pid]
                 if sum(self.unchoking_beliefs[pid]) == 3:
@@ -186,7 +186,7 @@ class Lfsltyrant(Peer):
         # update beliefs by aggregating upload/download speeds for the first few rounds
         if round > 0:
             if round < self.r:
-                self.update_beliefs(peers, history, update_download_sum = True, update_upload_sum = True)
+                self.update_beliefs(peers, history, update_download_sum = True, update_upload_sum = True, update_beliefs = False)
                 for key, value in self.download_nums.iteritems():
                     self.download_beliefs[key] = value
             else:
