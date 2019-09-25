@@ -70,7 +70,6 @@ class Lfslstd(Peer):
             # to avoid getting the same thing from multiple peers at a time.
             # sort by rarest pieces
             ilist = sorted(isect, key = lambda x: piecedict[x])
-
             # in first 5 rounds, request pieces randomly
             # after that, look for rarest pieces first
             if round >= 5:

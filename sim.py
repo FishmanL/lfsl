@@ -474,8 +474,8 @@ def main(args):
 
     if len(args) == 0:
         # default
-        agents_to_run = ['Lfslstd', 'Lfslstd', 'Lfslstd', 'Lfslstd', 'Lfslstd', 'Lfslstd', 'Lfslstd', 'Lfslstd', 'Lfslstd', 'Lfslstd', 'Lfslstd',
-                        'Lfslstd', 'Lfslstd', 'Seed']
+        agents_to_run = ['Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare',
+                        'Lfslpropshare', 'Lfslpropshare', 'Dummy', 'Seed']
     else:
         try:
             agents_to_run = parse_agents(args)
