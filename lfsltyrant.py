@@ -13,10 +13,6 @@ from messages import Upload, Request
 from util import even_split
 from peer import Peer
 
-gamma = 0.1
-r = 3
-alpha = 0.2
-
 class Lfsltyrant(Peer):
     # constants for how fast we update our beliefs about upload and download speeds
 
@@ -24,8 +20,16 @@ class Lfsltyrant(Peer):
         print "post_init(): %s here!" % self.id
         self.dummy_state = dict()
         self.dummy_state["cake"] = "lie"
-        # initialize beliefs about upload and download speeds and whether they have unchoked in the last 3 periods between each agent
-        self.beliefs = dict()
+        # initialize beliefs about 1) upload speed 2) download speed 3) unchoking in last 3 periods for each peer
+        self.upload_beliefs = dict()
+        self.download_beliefs = dict()
+        self.unchoking_beliefs = dict()
+        self.we_unchoked = []
+
+        self.gamma = 0.1
+        self.r = 3
+        self.alpha = 0.2
+
 
     def requests(self, peers, history):
         """
@@ -90,17 +94,69 @@ class Lfsltyrant(Peer):
                     # which part of the piece do we need next?
                     # (must get the next-needed blocks in order)
                     start_block = self.pieces[piece_id]
-                    r = Request(self.id, peer.id, piece_id, start_block)
-                    requests.append(r)
+                    req = Request(self.id, peer.id, piece_id, start_block)
+                    requests.append(req)
             else:
                 for piece_id in random.sample(isect, n):
                     # aha! The peer has this piece! Request it.
                     # which part of the piece do we need next?
                     # (must get the next-needed blocks in order)
                     start_block = self.pieces[piece_id]
-                    r = Request(self.id, peer.id, piece_id, start_block)
-                    requests.append(r)
+                    req = Request(self.id, peer.id, piece_id, start_block)
+                    requests.append(req)
         return requests
+
+    # update beliefs based on past round
+    def update_beliefs(self, peers, history,
+                        update_download_sum=False,
+                        update_upload_sum=False,
+                        update_unchoking=True):
+        round = history.current_round()
+        last_downloads = history.downloads[round - 1]
+        last_uploads = history.uploads[round - 1]
+        # update number of blocks I have downloaded from everybody
+        if update_download_sum:
+            for download in last_downloads:
+                if download.from_id in self.download_beliefs.keys():
+                    self.download_beliefs[download.from_id] += download.blocks
+                else:
+                    self.download_beliefs[download.from_id] = download.blocks
+            logging.debug('Download beliefs for %s %s' % (self.id, str(self.download_beliefs)))
+        # update number of blocks I have uploaded from everybody
+        if update_upload_sum:
+            for upload in last_uploads:
+                # track who unchoked us
+                if upload.to_id in self.upload_beliefs.keys():
+                    self.upload_beliefs[upload.to_id] += upload.bw
+                else:
+                    self.upload_beliefs[upload.to_id] = upload.bw
+            logging.debug('Upload beliefs for %s %s' % (self.id, str(self.upload_beliefs)))
+        if update_unchoking:
+            # update list of whether j unchoked us in the last r periods
+            unchoked = set(download.from_id for download in last_downloads)
+            for peer in peers:
+                if peer.id not in self.unchoking_beliefs.keys():
+                    self.unchoking_beliefs[peer.id] = []
+                self.unchoking_beliefs[peer.id].append(peer.id in unchoked)
+                while len(self.unchoking_beliefs[peer.id]) > self.r:
+                    self.unchoking_beliefs[peer.id].pop(0)
+            logging.debug('Unchoking beliefs for %s %s' % (self.id, str(self.unchoking_beliefs)))
+            # update list of whether we unchoked them
+            we_unchoked = set(upload.to_id for upload in last_uploads)
+            for pid in we_unchoked:
+                # if they didn't unchoke us, increase the upload belief
+                if not self.unchoking_beliefs[pid][-1]:
+                    self.upload_beliefs[pid] *= (1 + self.alpha)
+                # if they did unchoke us, update the download belief to be real
+                else:
+                    for download in last_downloads:
+                        if download.from_id == pid:
+                            if pid in self.download_beliefs.keys():
+                                self.download_beliefs[pid] += download.blocks
+                            else:
+                                self.download_beliefs[pid] = download.blocks
+                if sum(self.unchoking_beliefs[pid]) == 3:
+                    self.upload_beliefs[pid] *= (1 - self.gamma)
 
     def uploads(self, requests, peers, history):
         """
@@ -120,39 +176,55 @@ class Lfsltyrant(Peer):
         # For example, history.downloads[round-1] (if round != 0, of course)
         # has a list of Download objects for each Download to this peer in
         # the previous round.
-
+        # update beliefs by aggregating upload/download speeds for the first few rounds
+        if round > 0:
+            if round < self.r:
+                self.update_beliefs(peers, history, update_download_sum = True, update_upload_sum = True)
+            else:
+                self.update_beliefs(peers, history)
         if len(requests) == 0:
             logging.debug("No one wants my pieces!")
             chosen = []
             bws = []
         else:
-            logging.debug("Still here: uploading to a random peer")
+            logging.debug("Still here: uploading using brain cells")
             # if it has been fewer than r rounds, we allocate evenly among everyone
-            if round < r:
+            if round < self.r:
                 chosen = [request.requester_id for request in requests]
                 bws = even_split(self.up_bw, len(chosen))
-            # once it has been r rounds, we can create our initial beliefs about each peer based on the history
-            elif round == r:
-                # make dictionaries with total download and upload bandwith for each agent
-                downloads_peer = {}
-                for round_downloads in history.downloads:
-                    for download in round_downloads:
-                        if download.from_id in downloads_peer.keys():
-                            downloads_peer[download.from_id] = download.blocks
-                        else:
-                            downloads_peer[download.from_id] += download.blocks
-                    logging.debug("Here's my download dictionary.")
-                    logging.debug(str(downloads_peer))
+            # if it has been r or more rounds, we can use the algorithm
             else:
-                # if it has been more than r rounds, we allocate based on the algorithm
                 # change my internal state for no reason
-                self.dummy_state["cake"] = "pie"
-                request = random.choice(requests)
-                chosen = [request.requester_id]
-                # Evenly "split" my upload bandwidth among the one chosen requester
-                # ALLOCATE UIJ BASED ON SELF.BELIEFS U_IJ
-                bws = even_split(self.up_bw, len(chosen))
-
+                cap = self.up_bw
+                # sort requesters by calculating ratios of download to upload beliefs and sorting by decreasing
+                ratios = dict()
+                requesters = [request.requester_id for request in requests]
+                for requester in requesters:
+                    # if we have never uploaded to this person, treat it as if we have given them 1 unit
+                    if requester in self.upload_beliefs.keys():
+                        if requester in self.download_beliefs.keys():
+                            ratios[requester] = self.download_beliefs[requester] * 1.0 / self.upload_beliefs[requester]
+                        else:
+                            ratios[requester] = 0
+                    else:
+                        if requester in self.download_beliefs.keys():
+                            ratios[requester] = self.download_beliefs[requester]
+                        else:
+                            ratios[requester] = 0
+                ratios_sorted = sorted(ratios.items(), key = lambda x: x[1], reverse = True)
+                bandwidth_used = 0
+                chosen, bws = [], []
+                for pid, ratio in ratios_sorted:
+                    if pid in self.upload_beliefs.keys():
+                        if self.upload_beliefs[pid] + bandwidth_used > self.up_bw:
+                            break
+                        else:
+                            bws.append(self.upload_beliefs[pid])
+                            bandwidth_used += self.upload_beliefs[pid]
+                            chosen.append(pid)
+                    else:
+                        self.upload_beliefs[pid] = 0
+                self.we_unchoked = chosen
         # create actual uploads out of the list of peer ids and bandwidths
         uploads = [Upload(self.id, peer_id, bw)
                    for (peer_id, bw) in zip(chosen, bws)]
