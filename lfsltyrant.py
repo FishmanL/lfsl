@@ -26,8 +26,6 @@ class Lfsltyrant(Peer):
 
         # dictionary mapping peer ids to array of r booleans (whether j has unchoked us in each of the last r rounds)
         self.unchoking_beliefs = dict()
-        self.we_unchoked = []
-
         self.gamma = 0.1
         self.r = 3
         self.alpha = 0.2
@@ -204,7 +202,6 @@ class Lfsltyrant(Peer):
                 bws = even_split(self.up_bw, len(chosen))
             # if it has been r or more rounds, we can use the algorithm
             else:
-                # change my internal state for no reason
                 cap = self.up_bw
                 # sort requesters by calculating ratios of download to upload beliefs and sorting by decreasing
                 ratios = dict()
@@ -216,6 +213,8 @@ class Lfsltyrant(Peer):
                     ratios[requester] = self.download_beliefs[requester] * 1.0 / self.upload_beliefs[requester]
 
                 ratios_sorted = sorted(ratios.items(), key = lambda x: x[1], reverse = True)
+                logging.debug('ratios')
+                logging.debug(str(ratios_sorted))
                 bandwidth_used = 0
                 chosen, bws = [], []
                 for pid, ratio in ratios_sorted:
@@ -225,7 +224,6 @@ class Lfsltyrant(Peer):
                         bws.append(self.upload_beliefs[pid])
                         bandwidth_used += self.upload_beliefs[pid]
                         chosen.append(pid)
-                self.we_unchoked = chosen
         # create actual uploads out of the list of peer ids and bandwidths
         uploads = [Upload(self.id, peer_id, bw)
                    for (peer_id, bw) in zip(chosen, bws)]
