@@ -112,8 +112,8 @@ class Lfsltyrant(Peer):
         logging.debug('initializing')
         logging.debug(str(peers))
         for peer in peers:
-            self.download_beliefs[peer.id] = 1
-            self.upload_beliefs[peer.id] = 1
+            self.download_beliefs[peer.id] = self.up_bw
+            self.upload_beliefs[peer.id] = self.up_bw
             self.unchoking_beliefs[peer.id] = []
 
     # update beliefs based on past round
