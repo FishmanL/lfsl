@@ -27,7 +27,7 @@ class Lfsltyrant(Peer):
         # dictionary mapping peer ids to array of r booleans (whether j has unchoked us in each of the last r rounds)
         self.unchoking_beliefs = dict()
         self.gamma = 0.1
-        self.r = 1
+        self.r = 3
         self.alpha = 0.2
 
 
@@ -112,8 +112,8 @@ class Lfsltyrant(Peer):
         logging.debug('initializing')
         logging.debug(str(peers))
         for peer in peers:
-            self.download_beliefs[peer.id] = self.up_bw
-            self.upload_beliefs[peer.id] = self.up_bw
+            self.download_beliefs[peer.id] = 1
+            self.upload_beliefs[peer.id] = 1
             self.unchoking_beliefs[peer.id] = []
 
     # update beliefs based on past round
