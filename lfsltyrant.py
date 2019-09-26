@@ -27,7 +27,7 @@ class Lfsltyrant(Peer):
         # dictionary mapping peer ids to array of r booleans (whether j has unchoked us in each of the last r rounds)
         self.unchoking_beliefs = dict()
         self.gamma = 0.1
-        self.r = 3
+        self.r = 1
         self.alpha = 0.2
 
 
@@ -183,7 +183,7 @@ class Lfsltyrant(Peer):
         # the previous round.
         # update beliefs by aggregating upload/download speeds for the first few rounds
         if round > 0:
-            if round < self.r:
+            if round <= 5:
                 self.update_beliefs(peers, history, update_download_sum = True, update_upload_sum = True, update_beliefs = False)
                 for key, value in self.download_nums.iteritems():
                     self.download_beliefs[key] = value
@@ -196,7 +196,7 @@ class Lfsltyrant(Peer):
         else:
             logging.debug("Still here: uploading using brain cells")
             # if it has been fewer than r rounds, we allocate evenly among everyone
-            if round < self.r:
+            if round <= 5:
                 logging.debug('even split')
                 chosen = [request.requester_id for request in requests]
                 bws = even_split(self.up_bw, len(chosen))
