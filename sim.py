@@ -443,11 +443,11 @@ def main(args):
                       help="Set the logging level: 'debug' or 'info'")
 
     parser.add_option("--num-pieces",
-                      dest="num_pieces", default=15, type="int",
+                      dest="num_pieces", default=16, type="int",
                       help="Set number of pieces in the file")
 
     parser.add_option("--blocks-per-piece",
-                      dest="blocks_per_piece", default=15, type="int",
+                      dest="blocks_per_piece", default=16, type="int",
                       help="Set number of blocks per piece")
 
     parser.add_option("--max-round",
@@ -463,7 +463,7 @@ def main(args):
                       help="Max upload bandwidth")
 
     parser.add_option("--iters",
-                      dest="iters", default=1, type="int",
+                      dest="iters", default=5, type="int",
                       help="Number of times to run simulation to get stats")
 
 
@@ -475,7 +475,7 @@ def main(args):
     if len(args) == 0:
         # default
         agents_to_run = ['Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare',
-                        'Lfslpropshare', 'Lfslpropshare', 'Dummy', 'Seed']
+                        'Lfslpropshare', 'Lfslpropshare', 'Lfslpropshare', 'Seed', 'Seed']
     else:
         try:
             agents_to_run = parse_agents(args)

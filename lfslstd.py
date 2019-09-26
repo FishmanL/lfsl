@@ -127,18 +127,20 @@ class Lfslstd(Peer):
                 # optimistic unchoking every 3 periods
                 if "unchoked_agent" not in self.dummy_state or round % 3 == 1:
                     self.dummy_state["unchoked_agent"] = random.choice(peers).id
-                pasthist = history.downloads[round-1]
-
-                # create a dictionary mapping agents to the number of blocks they gave you last round
                 ndict = {}
-                for item in pasthist:
-                    if item.to_id != self.id:
-                        continue
-                    pid = item.from_id
-                    if pid in ndict.keys():
-                        ndict[pid] += item.blocks
-                    else:
-                        ndict[pid] = item.blocks
+                for i in range(1, min(round, 4)):
+                    pasthist = history.downloads[round-i]
+
+                    # create a dictionary mapping agents to the number of blocks they gave you last round
+
+                    for item in pasthist:
+                        if item.to_id != self.id:
+                            continue
+                        pid = item.from_id
+                        if pid in ndict.keys():
+                            ndict[pid] += item.blocks
+                        else:
+                            ndict[pid] = item.blocks
                 top = sorted(ndict.items(), key = lambda x: x[1], reverse=True)
 
                 reqset = set(request.requester_id for request in requests)

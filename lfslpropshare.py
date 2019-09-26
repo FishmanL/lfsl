@@ -125,31 +125,34 @@ class Lfslpropshare(Peer):
                 chosen = [request.requester_id for request in requests][:4]
                 bws = even_split(self.up_bw, len(chosen))
             else:
-                pasthist = history.downloads[round - 1]
                 ndict = {}
-                for item in pasthist:
-                    if item.to_id != self.id or 'Seed' in item.from_id:
-                        continue
-                    pid = item.from_id
-                    if pid in ndict.keys():
-                        ndict[pid] += item.blocks
-                    else:
-                        ndict[pid] = item.blocks
+                for i in range(1, min(round, 4)):
+                    pasthist = history.downloads[round - i]
+
+                    for item in pasthist:
+                        if item.to_id != self.id or 'Seed' in item.from_id:
+                            continue
+                        pid = item.from_id
+                        if pid in ndict.keys():
+                            ndict[pid] += item.blocks
+                        else:
+                            ndict[pid] = item.blocks
                 requestids = [request.requester_id for request in requests]
                 totaluploads = sum([ndict.get(id, 0) for id in requestids])
                 #now actually find the proportionality
                 try:
-                    bws = [self.up_bw*self.for_sharing*(float(ndict.get(id, 0))/float(totaluploads)) for id in requestids]
+                    bws = [int(self.up_bw*self.for_sharing*(float(ndict.get(id, 0))/float(totaluploads))) for id in requestids]
                     randind = random.randint(0, len(requestids) - 1)
 
                     to_share = min(self.up_bw - sum(bws), self.up_bw*self.for_sharing)
-                    bws[randind] += to_share
-                    logging.info((str(self.id) + " " + str(self.up_bw) + ": " + str(zip(requestids,bws))))
+                    #the rest of our bandwidth goes towards optimistic unchoking
+                    bws[randind] += int(to_share)
+                    logging.debug((str(self.id) + " " + str(self.up_bw) + ": " + str(zip(requestids,bws))))
                     chosen = requestids
                 except:
                     chosen = [request.requester_id for request in requests][:4]
                     bws = even_split(self.up_bw, len(chosen))
-                #now add the optimistic
+
 
 
         # create actual uploads out of the list of peer ids and bandwidths
